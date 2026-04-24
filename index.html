@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IPTV PRO MAX</title>
+<!-- HLS.js for handling HLS streams in browsers that do not natively support them -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0b0b0f;
+  color: #fff;
+  overflow: hidden;
+}
+/* Login overlay covers entire screen until credentials are validated */
+#login {
+  position: fixed;
+  inset: 0;
+  background: #000c;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+#login h2 { margin-bottom: 20px; }
+#login input,
+#login button {
+  width: 280px;
+  margin: 5px 0;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+}
+#login input {
+  background: #2c2c3a;
+  color: #fff;
+}
+#login button {
+  cursor: pointer;
+  background: #00c853;
+  color: #000;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+#login button:hover {
+  background: #00b74f;
+}
+/* Layout */
+.app {
+  display: flex;
+  height: 100vh;
+}
+.sidebar {
+  width: 390px;
+  min-width: 300px;
+  background: #141420;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #222;
+}
+.title {
+  padding: 14px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 18px;
+  background: #1c1c2b;
+}
+.controls {
+  padding: 10px;
+  border-bottom: 1px solid #222;
+}
+.controls input,
+.controls button {
+  width: calc(100% - 20px);
+  margin: 6px 10px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  outline: none;
+  font-size: 14px;
+}
+.controls button {
+  background: #00c853;
+  color: #000;
+  font-weight: bold;
+  cursor: pointer;
+}
+.controls button.secondary {
+  background: #263238;
+  color: #fff;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #222;
+}
+.tab {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 8px;
+  background: #202332;
+  color: #bbb;
+  user-select: none;
+}
+.tab.active {
+  background: #00c853;
+  color: #000;
+  font-weight: bold;
+}
+.panel { flex: 1; overflow-y: auto; display: none; }
+.panel.active { display: block; }
+.section-title {
+  padding: 10px 12px;
+  font-weight: bold;
+  color: #9be7b0;
+  background: #111827;
+  border-bottom: 1px solid #222;
+}
+/* Channel list styling */
+.channel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-bottom: 1px solid #222;
+  cursor: pointer;
+}
+.channel:hover {
+  background: #00c853;
+  color: #000;
+}
+.channel-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 80%;
+  overflow: hidden;
+}
+.channel-main img {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #111;
+}
+.channel-main span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.star {
+  cursor: pointer;
+  font-size: 20px;
+  user-select: none;
+}
+/* Action icons (favorite, edit, delete) for channels */
+.channel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.channel-actions .star {
+  cursor: pointer;
+  font-size: 20px;
+  user-select: none;
+}
+.channel-actions .edit,
+.channel-actions .delete {
+  cursor: pointer;
+  font-size: 18px;
+  user-select: none;
+  margin-left: 4px;
+}
+.channel-actions .edit:hover,
+.channel-actions .delete:hover {
+  color: #00c853;
+}
+/* Card styling for Quran and Movie sections */
+.card {
+  padding: 10px;
+  border-bottom: 1px solid #222;
+}
+.card-title { font-weight: bold; margin-bottom: 6px; }
+.card-actions button {
+  margin-right: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.card-actions button.primary {
+  background: #00c853;
+  color: #000;
+  font-weight: bold;
+}
+.card-actions button.secondary {
+  background: #263238;
+  color: #fff;
+}
+/* Main viewing area */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: #10131b;
+}
+ video {
+  /* Video player for IPTV or local movie playback */
+  width: 90%;
+  max-height: 70vh;
+  border-radius: 12px;
+  background: #000;
+  border: none;
+  display: none;
+ }
+.placeholder {
+  width: 90%;
+  min-height: 200px;
+  background: #1a1d2b;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  text-align: center;
+  padding: 20px;
+}
+.status {
+  width: 90%;
+  margin-top: 12px;
+  background: #111;
+  padding: 12px;
+  border-radius: 12px;
+  color: #ddd;
+  font-size: 14px;
+  text-align: center;
+}
+
+  /* Library item styling */
+  .library-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #222;
+  }
+  .library-item:hover {
+    background: #2c2c40;
+  }
+  .library-name {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .library-actions button {
+    margin-left: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .library-actions button.play {
+    background: #00c853;
+    color: #000;
+    font-weight: bold;
+  }
+  .library-actions button.remove {
+    background: #e53935;
+    color: #fff;
+  }
+  .library-actions button.edit {
+    background: #1976d2;
+    color: #fff;
+  }
+
+  /* Episode selector overlay for series selection */
+  #episodeSelector {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 1001;
+    overflow-y: auto;
+    display: none;
+    padding: 20px;
+    color: #fff;
+  }
+  #episodeSelector h3 {
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+  .episode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .episode-item {
+    padding: 8px 12px;
+    background: #202332;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .episode-item:hover {
+    background: #00c853;
+    color: #000;
+  }
+  .close-episode-selector {
+    margin-top: 12px;
+    padding: 6px 12px;
+    background: #e53935;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #fff;
+  }
+/* Xtream popup styling */
+#xtream {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+#xtream input,
+#xtream button {
+  width: 320px;
+  margin: 6px 0;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+}
+#xtream button {
+  cursor: pointer;
+  background: #00c853;
+  color: #000;
+  font-weight: bold;
+}
+#xtream button.secondary {
+  background: #263238;
+  color: #fff;
+}
+</style>
+</head>
+<body>
+<!-- Login overlay -->
+<div id="login">
+  <h2>IPTV Login</h2>
+  <input id="loginUser" placeholder="Username" />
+  <input id="loginPass" type="password" placeholder="Password" />
+  <button id="loginBtn">Login</button>
+</div>
+<!-- Main application container -->
+<div class="app" id="app" style="display: none;">
+  <!-- Sidebar for controls and lists -->
+  <div class="sidebar">
+    <div class="title">IPTV PRO MAX</div>
+    <div class="controls">
+      <button onclick="openXtream()">🔐 Xtream</button>
+      <input type="file" id="playlistFile" accept=".m3u,.m3u8" />
+      <button onclick="loadPlaylistFromFile()">📁 Load File</button>
+      <input id="playlistUrl" placeholder="M3U URL" />
+      <button onclick="loadPlaylistFromURL()">🌐 Load URL</button>
+      <input id="searchInput" placeholder="Search channels..." oninput="renderChannels()" />
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('iptvTab', this)">IPTV</div>
+      <!-- Removed Quran tab as requested -->
+      <div class="tab" onclick="showTab('movieTab', this)">Movie</div>
+      <div class="tab" onclick="showTab('favTab', this)">Favorites</div>
+      <!-- New tabs for movie and series libraries -->
+      <div class="tab" onclick="showTab('movieLibraryTab', this)">Movie Library</div>
+      <div class="tab" onclick="showTab('seriesLibraryTab', this)">Series Library</div>
+    </div>
+    <!-- IPTV panel -->
+    <div id="iptvTab" class="panel active">
+      <div class="section-title">IPTV Channels</div>
+      <!-- Card to add a custom IPTV channel -->
+      <div class="card">
+        <div class="card-title">Add Channel</div>
+        <input id="newChannelName" placeholder="Channel Name" />
+        <input id="newChannelURL" placeholder="Direct URL (e.g., m3u8, mp4, webm)" style="margin-top: 6px;" />
+        <!-- Optional field for channel logo URL -->
+        <!-- Optional field for channel logo URL. If left empty, a logo is auto-detected from the channel domain. -->
+        <input id="newChannelLogo" placeholder="Logo URL (optional, auto-detect if empty)" style="margin-top: 6px;" />
+        <!-- Optional file input for channel logo image -->
+        <input type="file" id="newChannelLogoFile" accept="image/*" style="margin-top: 6px;" />
+        <div class="card-actions" style="margin-top: 8px; display: flex; gap: 6px;">
+          <button class="primary" onclick="addCustomChannel()">Add Channel</button>
+        </div>
+      </div>
+      <div id="channelList"></div>
+    </div>
+    <!-- Quran panel removed -->
+    <!-- Movie panel -->
+    <div id="movieTab" class="panel">
+      <div class="section-title">Play a Movie</div>
+      <div class="card">
+        <div class="card-title">Local Movie File</div>
+        <!-- File input for selecting a video file to play -->
+        <input type="file" id="movieFile" accept="video/*" />
+        <!-- File input for selecting a subtitle/translation file (VTT or SRT) -->
+        <input type="file" id="subtitleFile" accept=".vtt,.srt" style="margin-top: 6px;" />
+        <div class="card-actions" style="margin-top: 8px; display: flex; gap: 6px;">
+          <button class="primary" onclick="playMovie()">▶ Play Movie</button>
+          <button class="secondary" onclick="loadSubtitle()">Load Subtitle</button>
+        </div>
+      </div>
+    </div>
+    <!-- Favorites panel -->
+    <div id="favTab" class="panel">
+      <div class="section-title">Favorites</div>
+      <div id="favoriteList"></div>
+    </div>
+
+    <!-- Movie Library panel -->
+    <div id="movieLibraryTab" class="panel">
+      <div class="section-title">Movie Library</div>
+      <!-- Search input for filtering movies -->
+      <input id="movieSearchInput" placeholder="Search movies..." oninput="renderMovieLibrary()"
+        style="width: calc(100% - 20px); margin: 6px 10px; padding: 10px; border: none; border-radius: 8px; background: #2c2c40; color: #fff;" />
+      <div class="card">
+        <div class="card-title">Add Movie</div>
+        <input id="newMovieName" placeholder="Movie Title" />
+        <input id="newMovieURL" placeholder="Direct URL (e.g., mp4, m3u8, webm)" style="margin-top: 6px;" />
+        <div class="card-actions" style="margin-top: 8px; display: flex; gap: 6px;">
+          <button class="primary" onclick="addMovie()">Add</button>
+        </div>
+      </div>
+      <div id="movieLibraryList"></div>
+    </div>
+
+    <!-- Series Library panel -->
+    <div id="seriesLibraryTab" class="panel">
+      <div class="section-title">Series Library</div>
+      <!-- Search input for filtering series -->
+      <input id="seriesSearchInput" placeholder="Search series..." oninput="renderSeriesLibrary()"
+        style="width: calc(100% - 20px); margin: 6px 10px; padding: 10px; border: none; border-radius: 8px; background: #2c2c40; color: #fff;" />
+      <div class="card">
+        <div class="card-title">Add Series</div>
+        <input id="newSeriesName" placeholder="Series Title" />
+        <input id="newSeriesURL" placeholder="Direct URL (e.g., mp4, m3u8, webm)" style="margin-top: 6px;" />
+        <div class="card-actions" style="margin-top: 8px; display: flex; gap: 6px;">
+          <button class="primary" onclick="addSeries()">Add</button>
+        </div>
+      </div>
+      <div id="seriesLibraryList"></div>
+    </div>
+  </div>
+  <!-- Main viewing area -->
+  <div class="main">
+    <video id="videoPlayer" controls></video>
+    <div id="placeholder" class="placeholder">
+      Select a channel from the left to play it here (IPTV, Movie, or Library). After choosing a movie file you can click “Load Subtitle” to add subtitles in Arabic or other languages. The player supports common video formats such as MP4, WebM and HLS (.m3u8) streams.
+    </div>
+    <div class="status" id="statusBox">READY</div>
+  </div>
+</div>
+<!-- Xtream login popup -->
+<div id="xtream">
+  <h2>Xtream Login</h2>
+  <input id="xtreamHost" placeholder="Host (example: http://server.com)" />
+  <input id="xtreamPort" placeholder="Port (example: 80)" />
+  <input id="xtreamUser" placeholder="Username" />
+  <input id="xtreamPass" type="password" placeholder="Password" />
+  <button onclick="connectXtream()">Connect</button>
+  <button class="secondary" onclick="closeXtream()">Close</button>
+</div>
+
+  <!-- Episode selector overlay -->
+  <div id="episodeSelector"></div>
+<script>
+// Helper to get DOM elements by ID
+const $ = (id) => document.getElementById(id);
+// Application state
+let channels = [];
+let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+let currentHls = null;
+// Currently loaded subtitle track element. Used to remove previous subtitles when loading a new file.
+let subtitleTrack = null;
+
+// URL of a default playlist to auto-load on login. This playlist contains Arabic channels from iptv-org.
+// If you prefer another default, you can change this constant.
+const autoPlaylistURL = 'https://iptv-org.github.io/iptv/languages/ara.m3u';
+
+// Attempt to fetch and load the default playlist. It tries a direct fetch first,
+// and falls back to using a CORS proxy if direct access fails. If both fail, the status box
+// will display an error. This function parses the playlist via parseM3U when successful.
+function loadAutoPlaylist() {
+  const directUrl = autoPlaylistURL;
+  fetch(directUrl)
+    .then(r => {
+      if (!r.ok) throw new Error('Direct fetch failed');
+      return r.text();
+    })
+    .then(parseM3U)
+    .catch(() => {
+      // fallback to proxy to bypass CORS restrictions
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(directUrl);
+      fetch(proxyUrl)
+        .then(r => {
+          if (!r.ok) throw new Error('Proxy fetch failed');
+          return r.text();
+        })
+        .then(parseM3U)
+        .catch(() => {
+          setStatus('Failed to load default playlist');
+        });
+    });
+}
+
+// Custom channels added by the user. Persisted in localStorage.
+let customChannels = JSON.parse(localStorage.getItem('customChannels') || '[]');
+
+// Movie and Series libraries stored in localStorage
+let movieLibrary = JSON.parse(localStorage.getItem('movieLibrary') || '[]');
+let seriesLibrary = JSON.parse(localStorage.getItem('seriesLibrary') || '[]');
+
+// Arrays to hold movies and series returned from Xtream. These are populated
+// after a successful Xtream login. Each movie entry contains
+// { name, url, logo, isXtream: true }. Each series entry contains
+// { name, series_id, logo, base, user, pass, isXtreamSeries: true }.
+let xtreamMovies = [];
+let xtreamSeries = [];
+// Login event
+document.getElementById('loginBtn').addEventListener('click', () => {
+  const user = $("loginUser").value;
+  const pass = $("loginPass").value;
+  // Basic login check (static credentials)
+  if(user === 'admin' && pass === '1234') {
+    $("login").style.display = 'none';
+    $("app").style.display = 'flex';
+    renderChannels();
+    renderFavorites();
+      // Render movie and series libraries on login
+      renderMovieLibrary();
+      renderSeriesLibrary();
+
+    // Automatically load a default playlist so channels appear in the IPTV tab.
+    // This ensures the channel list is populated without requiring manual input.
+    loadAutoPlaylist();
+  } else {
+    alert('Invalid credentials');
+  }
+});
+// Tab switching
+function showTab(tabId, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  $(tabId).classList.add('active');
+  el.classList.add('active');
+}
+// Xtream functions
+function openXtream() {
+  $("xtream").style.display = 'flex';
+}
+function closeXtream() {
+  $("xtream").style.display = 'none';
+}
+async function connectXtream() {
+  const host = $("xtreamHost").value.trim();
+  const port = $("xtreamPort").value.trim();
+  const user = $("xtreamUser").value.trim();
+  const pass = $("xtreamPass").value.trim();
+  if(!host || !port || !user || !pass) {
+    alert('Please fill all Xtream details');
+    return;
+  }
+  const base = host.includes('http') ? `${host}:${port}` : `http://${host}:${port}`;
+  const api = `${base}/player_api.php?username=${user}&password=${pass}&action=get_live_streams`;
+  const proxy = 'https://api.allorigins.win/raw?url=';
+  // Try to fetch directly first, in case the server allows CORS. If direct fetch
+  // fails (likely due to CORS) we then try via the proxy. This mirrors the logic
+  // used in loadPlaylistFromURL and loadAutoPlaylist.
+  async function fetchXtream(endpoint) {
+    const response = await fetch(endpoint);
+    if (!response.ok) throw new Error('Request failed');
+    return response;
+  }
+  try {
+    // Attempt direct fetch
+    let response = await fetchXtream(api);
+    let data = await response.json();
+    if (!data || !data.length) throw new Error('No channels');
+    channels = data.map(c => {
+      // Construct the channel object. Xtream API provides `stream_icon` which may be
+      // a full URL or a relative path. If it's a full URL (starts with http)
+      // use it directly; otherwise prefix it with the base to form a valid URL.
+      const icon = c.stream_icon || '';
+      let logoUrl = '';
+      if (icon) {
+        if (/^https?:\/\//i.test(icon)) {
+          logoUrl = icon;
+        } else {
+          // Ensure we add a slash between base and icon if missing
+          const sep = icon.startsWith('/') ? '' : '/';
+          logoUrl = `${base}${sep}${icon}`;
+        }
+      }
+      // If no logo provided, derive one from the server host using Clearbit. This gives a simple
+      // icon based on the Xtream server domain, ensuring a logo is shown without manual input.
+      if (!logoUrl) {
+        try {
+          const host = new URL(base).hostname;
+          if (host) {
+            logoUrl = `https://logo.clearbit.com/${host}`;
+          }
+        } catch (e) {
+          logoUrl = '';
+        }
+      }
+      return {
+        name: c.name || 'Unnamed Channel',
+        url: `${base}/live/${user}/${pass}/${c.stream_id}.m3u8`,
+        logo: logoUrl
+      };
+    });
+    renderChannels();
+    renderFavorites();
+    // Fetch Xtream VOD (movies) and series after loading live channels.
+    // These calls are non-blocking; they will populate xtreamMovies and xtreamSeries
+    // and trigger the library panels to update when complete.
+    loadXtreamVOD(base, user, pass);
+    loadXtreamSeries(base, user, pass);
+    closeXtream();
+    setStatus('Xtream channels loaded');
+  } catch (directErr) {
+    // If direct fetch failed, attempt via proxy
+    try {
+      let response = await fetchXtream(proxy + encodeURIComponent(api));
+      let data = await response.json();
+      if (!data || !data.length) throw new Error('No channels');
+      channels = data.map(c => ({
+        name: c.name || 'Unnamed Channel',
+        url: `${base}/live/${user}/${pass}/${c.stream_id}.m3u8`,
+        logo: c.stream_icon || ''
+      }));
+      renderChannels();
+      renderFavorites();
+      // Fetch VOD and series using Xtream after proxy fallback
+      loadXtreamVOD(base, user, pass);
+      loadXtreamSeries(base, user, pass);
+      closeXtream();
+      setStatus('Xtream channels loaded');
+    } catch (proxyErr) {
+      console.error('Xtream load error', directErr, proxyErr);
+      alert('Failed to load Xtream channels (CORS or server error)');
+    }
+  }
+}
+// Playlist loading from file and URL
+function loadPlaylistFromFile() {
+  const file = $("playlistFile").files[0];
+  if(!file) {
+    alert('Please select a playlist file first');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => parseM3U(e.target.result);
+  reader.readAsText(file);
+}
+function loadPlaylistFromURL() {
+  const url = $("playlistUrl").value.trim();
+  if(!url) {
+    alert('Please enter a URL');
+    return;
+  }
+  // Attempt to fetch the playlist directly. If it fails (likely due to CORS),
+  // fallback to using a CORS proxy. Use encodeURIComponent on the original URL
+  // for the proxy. If both attempts fail, alert the user.
+  fetch(url)
+    .then(r => {
+      if(!r.ok) throw new Error('Direct fetch failed');
+      return r.text();
+    })
+    .then(parseM3U)
+    .catch(() => {
+      // fallback using CORS proxy
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+      fetch(proxyUrl)
+        .then(r => {
+          if(!r.ok) throw new Error('Proxy fetch failed');
+          return r.text();
+        })
+        .then(parseM3U)
+        .catch(() => alert('Failed to load URL (maybe due to CORS)'));
+    });
+}
+
+// ---------------------------
+// Xtream VOD and Series Loading
+
+// Helper to fetch JSON data with multiple fallback proxies. Some Xtream servers
+// do not allow cross‑origin requests, so we try direct fetch first and then
+// iterate through a list of public CORS proxies. Each proxy prepends its own
+// prefix to the original URL. If all attempts fail, the function throws.
+async function fetchJsonWithProxy(originalUrl) {
+  const proxies = [
+    '',
+    // AllOrigins proxy: returns raw content
+    'https://api.allorigins.win/raw?url=',
+    // corsproxy.io proxy: encodes the URL and returns the response
+    'https://corsproxy.io/?',
+    // cors.sh proxy: prefix and encode URL
+    'https://proxy.cors.sh/?'
+  ];
+  for (const proxy of proxies) {
+    const fullUrl = proxy ? (proxy + encodeURIComponent(originalUrl)) : originalUrl;
+    try {
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error('HTTP error');
+      // Some proxies wrap the JSON in a "contents" property when using api.allorigins.win,
+      // but our chosen proxies return raw JSON, so attempt to parse directly.
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      // Continue to next proxy
+    }
+  }
+  throw new Error('All fetch attempts failed');
+}
+// Fetch the list of movies (VOD) from Xtream and populate xtreamMovies.
+// This function attempts a direct fetch first, then falls back to using a
+// CORS proxy if necessary. Upon success it updates the movie library list.
+async function loadXtreamVOD(base, user, pass) {
+  xtreamMovies = [];
+  const endpoint = `${base}/player_api.php?username=${user}&password=${pass}&action=get_vod_streams`;
+  try {
+    const data = await fetchJsonWithProxy(endpoint);
+    processVODData(data);
+  } catch (err) {
+    console.error('Failed to load Xtream VOD', err);
+    setStatus('Failed to load Xtream movies');
+  }
+
+  function processVODData(data) {
+    if (!Array.isArray(data) || !data.length) {
+      setStatus('No Xtream movies found');
+      renderMovieLibrary();
+      return;
+    }
+    xtreamMovies = data.map(item => {
+      const name = item.name || 'Untitled Movie';
+      const streamId = item.stream_id || item.num || item.id || '';
+      // Determine container extension; default to mp4 if missing
+      const ext = (item.container_extension || 'mp4').replace(/^\./, '');
+      // Build the movie URL using the Xtream format
+      const url = `${base}/movie/${user}/${pass}/${streamId}.${ext}`;
+      // Determine logo. Use stream_icon if available, otherwise derive from base domain.
+      let logo = '';
+      const icon = item.stream_icon || '';
+      if (icon) {
+        if (/^https?:\/\//i.test(icon)) {
+          logo = icon;
+        } else {
+          const sep = icon.startsWith('/') ? '' : '/';
+          logo = `${base}${sep}${icon}`;
+        }
+      }
+      if (!logo) {
+        try {
+          const host = new URL(base).hostname;
+          if (host) {
+            logo = `https://logo.clearbit.com/${host}`;
+          }
+        } catch (e) {
+          logo = '';
+        }
+      }
+      return { name, url, logo, isXtream: true };
+    });
+    // Update movie library display
+    renderMovieLibrary();
+    setStatus(`Loaded ${xtreamMovies.length} Xtream movies`);
+  }
+}
+
+// Fetch the list of series from Xtream and populate xtreamSeries. Each entry
+// contains minimal info (name, series_id, logo, credentials) for later
+// retrieval of episodes. This function also uses a proxy fallback when
+// necessary and triggers a refresh of the series library display.
+async function loadXtreamSeries(base, user, pass) {
+  xtreamSeries = [];
+  const endpoint = `${base}/player_api.php?username=${user}&password=${pass}&action=get_series`;
+  try {
+    const data = await fetchJsonWithProxy(endpoint);
+    processSeriesData(data);
+  } catch (err) {
+    console.error('Failed to load Xtream series', err);
+    setStatus('Failed to load Xtream series');
+  }
+
+  function processSeriesData(data) {
+    if (!Array.isArray(data) || !data.length) {
+      setStatus('No Xtream series found');
+      renderSeriesLibrary();
+      return;
+    }
+    xtreamSeries = data.map(item => {
+      const name = item.name || item.title || 'Untitled Series';
+      const seriesId = item.series_id || item.id || '';
+      // Determine logo
+      let logo = '';
+      const cover = item.cover || item.stream_icon || '';
+      if (cover) {
+        if (/^https?:\/\//i.test(cover)) {
+          logo = cover;
+        } else {
+          const sep = cover.startsWith('/') ? '' : '/';
+          logo = `${base}${sep}${cover}`;
+        }
+      }
+      if (!logo) {
+        try {
+          const host = new URL(base).hostname;
+          if (host) {
+            logo = `https://logo.clearbit.com/${host}`;
+          }
+        } catch (e) {
+          logo = '';
+        }
+      }
+      return { name, series_id: seriesId, logo, base, user, pass, isXtreamSeries: true };
+    });
+    // Update series library display
+    renderSeriesLibrary();
+    setStatus(`Loaded ${xtreamSeries.length} Xtream series`);
+  }
+}
+// Parse M3U playlist
+function parseM3U(data) {
+  channels = [];
+  let name = '';
+  let logo = '';
+  data.split('\n').forEach(line => {
+    const l = line.trim();
+    if(l.startsWith('#EXTINF')) {
+      name = (l.split(',')[1] || 'Unnamed Channel').trim();
+      // Extract the tvg-logo value. Some playlists use double quotes, single quotes or no quotes.
+      // This regex captures logo values in the first matching group that is defined.
+      const m = l.match(/tvg-logo=(?:"([^"]*)"|'([^']*)'|([^\s"']+))/);
+      logo = m ? (m[1] || m[2] || m[3]) : '';
+    } else if (l.startsWith('http')) {
+      // Determine final logo value. If a logo was specified in the playlist, use it.
+      // Otherwise attempt to derive a logo from the channel URL using Clearbit.
+      let channelLogo = logo;
+      if (!channelLogo) {
+        try {
+          const parsedUrl = new URL(l);
+          const host = parsedUrl.hostname;
+          if (host) {
+            channelLogo = `https://logo.clearbit.com/${host}`;
+          }
+        } catch (e) {
+          channelLogo = '';
+        }
+      }
+      channels.push({ name, url: l, logo: channelLogo });
+    }
+  });
+  renderChannels();
+  renderFavorites();
+  setStatus(`Loaded ${channels.length} channels`);
+}
+// Render IPTV channel list
+function renderChannels() {
+  const list = $("channelList");
+  list.innerHTML = '';
+  const q = $("searchInput").value.toLowerCase();
+  // Combine remote channels and custom channels, tagging custom ones
+  const combined = [
+    ...channels.map(c => ({ ...c, isCustom: false })),
+    ...customChannels.map((c, idx) => ({ ...c, isCustom: true, customIndex: idx }))
+  ];
+  const filtered = combined.filter(c => (c.name || '').toLowerCase().includes(q));
+  if (!filtered.length) {
+    list.innerHTML = '<div class="channel" style="cursor:default;">No channels available</div>';
+    return;
+  }
+  filtered.forEach(ch => {
+    const favSymbol = favorites.includes(ch.url) ? '⭐' : '☆';
+    const div = document.createElement('div');
+    div.className = 'channel';
+    // Build action icons: star always exists; edit/delete only for custom channels
+    let actionsHtml = `<span class="star">${favSymbol}</span>`;
+    if (ch.isCustom) {
+      actionsHtml += `<span class="edit" title="Edit">✏️</span><span class="delete" title="Remove">🗑️</span>`;
+    }
+    div.innerHTML = `
+      <div class="channel-main">
+        <img src="${ch.logo || 'https://via.placeholder.com/40'}" alt="" onerror="this.onerror=null;this.src='https://via.placeholder.com/40'" />
+        <span>${escapeHtml(ch.name)}</span>
+      </div>
+      <div class="channel-actions">${actionsHtml}</div>
+    `;
+    div.onclick = () => playIPTV(ch.url, ch.name);
+    // Favorite toggle
+    div.querySelector('.star').onclick = (e) => {
+      e.stopPropagation();
+      toggleFavorite(ch);
+    };
+    // Edit custom channel
+    if (ch.isCustom) {
+      div.querySelector('.edit').onclick = (e) => {
+        e.stopPropagation();
+        editCustomChannel(ch.customIndex);
+      };
+      div.querySelector('.delete').onclick = (e) => {
+        e.stopPropagation();
+        removeCustomChannel(ch.customIndex);
+      };
+    }
+    list.appendChild(div);
+  });
+}
+// Render favorites panel
+function renderFavorites() {
+  const favList = $("favoriteList");
+  favList.innerHTML = '';
+  // Combine all channels (remote + custom) for favorites filtering
+  const combined = [...channels, ...customChannels];
+  const favChannels = combined.filter(c => favorites.includes(c.url));
+  if (!favChannels.length) {
+    favList.innerHTML = '<div class="channel" style="cursor:default;">No favorite channels yet</div>';
+    return;
+  }
+  favChannels.forEach(ch => {
+    const div = document.createElement('div');
+    div.className = 'channel';
+    div.innerHTML = `
+      <div class="channel-main">
+        <img src="${ch.logo || 'https://via.placeholder.com/40'}" alt="" onerror="this.onerror=null;this.src='https://via.placeholder.com/40'" />
+        <span>${escapeHtml(ch.name)}</span>
+      </div>
+      <div class="channel-actions"><span class="star">⭐</span></div>
+    `;
+    div.onclick = () => playIPTV(ch.url, ch.name);
+    div.querySelector('.star').onclick = (e) => {
+      e.stopPropagation();
+      toggleFavorite(ch);
+    };
+    favList.appendChild(div);
+  });
+}
+
+// Render movie library list
+function renderMovieLibrary() {
+  const list = $("movieLibraryList");
+  list.innerHTML = '';
+  // Get search query for movies (lowercase). If search input not present, fallback to empty string.
+  const search = $("movieSearchInput") ? $("movieSearchInput").value.toLowerCase() : '';
+  // Build a combined array with Xtream movies first, then custom movie library items.
+  const combined = [];
+  if (xtreamMovies && xtreamMovies.length) {
+    combined.push(...xtreamMovies.map(item => ({ ...item, isXtream: true })));
+  }
+  combined.push(...movieLibrary.map((item, idx) => ({ ...item, isXtream: false, libIndex: idx })));
+  // Filter by search term
+  const filtered = combined.filter(item => (item.name || '').toLowerCase().includes(search));
+  if (!filtered.length) {
+    list.innerHTML = '<div class="channel" style="cursor:default;">No movies available</div>';
+    return;
+  }
+  filtered.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'library-item';
+    const nameHtml = `<div class="library-name">${escapeHtml(item.name)}</div>`;
+    let actionsHtml = '';
+    if (item.isXtream) {
+      actionsHtml += `<button class="play" onclick="playXtreamMovie('${encodeURIComponent(item.url)}', '${encodeURIComponent(item.name)}')">Play</button>`;
+    } else {
+      actionsHtml += `<button class="play" onclick="playMediaFromLibrary('movie', ${item.libIndex})">Play</button>`;
+      actionsHtml += `<button class="edit" onclick="editMovie(${item.libIndex})">Edit</button>`;
+      actionsHtml += `<button class="remove" onclick="removeMovie(${item.libIndex})">Remove</button>`;
+    }
+    div.innerHTML = `${nameHtml}<div class="library-actions">${actionsHtml}</div>`;
+    list.appendChild(div);
+  });
+}
+
+// Render series library list
+function renderSeriesLibrary() {
+  const list = $("seriesLibraryList");
+  list.innerHTML = '';
+  // Get search query for series
+  const search = $("seriesSearchInput") ? $("seriesSearchInput").value.toLowerCase() : '';
+  // Combine Xtream series with custom series library.
+  const combined = [];
+  if (xtreamSeries && xtreamSeries.length) {
+    combined.push(...xtreamSeries.map((item, idx) => ({ ...item, isXtreamSeries: true, xtreamIndex: idx })));
+  }
+  combined.push(...seriesLibrary.map((item, idx) => ({ ...item, isXtreamSeries: false, libIndex: idx })));
+  // Filter by search term
+  const filtered = combined.filter(item => (item.name || '').toLowerCase().includes(search));
+  if (!filtered.length) {
+    list.innerHTML = '<div class="channel" style="cursor:default;">No series available</div>';
+    return;
+  }
+  filtered.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'library-item';
+    const nameHtml = `<div class="library-name">${escapeHtml(item.name)}</div>`;
+    let actionsHtml = '';
+    if (item.isXtreamSeries) {
+      // Xtream series: only Play button. When clicked, fetch series info and play episodes.
+      actionsHtml += `<button class="play" onclick="playXtreamSeries(${item.xtreamIndex})">Play</button>`;
+    } else {
+      actionsHtml += `<button class="play" onclick="playMediaFromLibrary('series', ${item.libIndex})">Play</button>`;
+      actionsHtml += `<button class="edit" onclick="editSeries(${item.libIndex})">Edit</button>`;
+      actionsHtml += `<button class="remove" onclick="removeSeries(${item.libIndex})">Remove</button>`;
+    }
+    div.innerHTML = `${nameHtml}<div class="library-actions">${actionsHtml}</div>`;
+    list.appendChild(div);
+  });
+}
+
+// Add a new movie to the library
+function addMovie() {
+  const name = $("newMovieName").value.trim();
+  const url = $("newMovieURL").value.trim();
+  if (!name || !url) {
+    alert('Please enter a movie title and direct URL');
+    return;
+  }
+  movieLibrary.push({ name, url });
+  localStorage.setItem('movieLibrary', JSON.stringify(movieLibrary));
+  // Clear inputs
+  $("newMovieName").value = '';
+  $("newMovieURL").value = '';
+  renderMovieLibrary();
+  setStatus('Movie added to library');
+}
+
+// Add a new series to the library
+function addSeries() {
+  const name = $("newSeriesName").value.trim();
+  const url = $("newSeriesURL").value.trim();
+  if (!name || !url) {
+    alert('Please enter a series title and direct URL');
+    return;
+  }
+  seriesLibrary.push({ name, url });
+  localStorage.setItem('seriesLibrary', JSON.stringify(seriesLibrary));
+  $("newSeriesName").value = '';
+  $("newSeriesURL").value = '';
+  renderSeriesLibrary();
+  setStatus('Series added to library');
+}
+
+// Remove a movie by index
+function removeMovie(index) {
+  movieLibrary.splice(index, 1);
+  localStorage.setItem('movieLibrary', JSON.stringify(movieLibrary));
+  renderMovieLibrary();
+}
+
+// Remove a series by index
+function removeSeries(index) {
+  seriesLibrary.splice(index, 1);
+  localStorage.setItem('seriesLibrary', JSON.stringify(seriesLibrary));
+  renderSeriesLibrary();
+}
+
+// Edit a movie by index
+function editMovie(index) {
+  const item = movieLibrary[index];
+  if (!item) return;
+  const newName = prompt('Edit movie title:', item.name);
+  if (newName === null) return;
+  const newUrl = prompt('Edit movie URL:', item.url);
+  if (newUrl === null) return;
+  const trimmedName = newName.trim();
+  const trimmedUrl = newUrl.trim();
+  if (!trimmedName || !trimmedUrl) {
+    alert('Title and URL cannot be empty');
+    return;
+  }
+  movieLibrary[index] = { ...item, name: trimmedName, url: trimmedUrl };
+  localStorage.setItem('movieLibrary', JSON.stringify(movieLibrary));
+  renderMovieLibrary();
+  setStatus('Movie updated');
+}
+
+// Edit a series by index
+function editSeries(index) {
+  const item = seriesLibrary[index];
+  if (!item) return;
+  const newName = prompt('Edit series title:', item.name);
+  if (newName === null) return;
+  const newUrl = prompt('Edit series URL:', item.url);
+  if (newUrl === null) return;
+  const trimmedName = newName.trim();
+  const trimmedUrl = newUrl.trim();
+  if (!trimmedName || !trimmedUrl) {
+    alert('Title and URL cannot be empty');
+    return;
+  }
+  seriesLibrary[index] = { ...item, name: trimmedName, url: trimmedUrl };
+  localStorage.setItem('seriesLibrary', JSON.stringify(seriesLibrary));
+  renderSeriesLibrary();
+  setStatus('Series updated');
+}
+
+// ---------------------------
+// Custom Channel Management
+// Add a new custom IPTV channel
+async function addCustomChannel() {
+  const name = $("newChannelName").value.trim();
+  const url = $("newChannelURL").value.trim();
+  const logoInput = $("newChannelLogo").value.trim();
+  const logoFileInput = $("newChannelLogoFile");
+  if (!name || !url) {
+    alert('Please enter a channel name and direct URL');
+    return;
+  }
+  // Helper to finalize adding channel with resolved logo data
+  const finalizeAdd = (logo) => {
+    customChannels.push({ name, url, logo: logo || '' });
+    localStorage.setItem('customChannels', JSON.stringify(customChannels));
+    // Clear inputs
+    $("newChannelName").value = '';
+    $("newChannelURL").value = '';
+    $("newChannelLogo").value = '';
+    if (logoFileInput) {
+      logoFileInput.value = '';
+    }
+    renderChannels();
+    setStatus('Channel added');
+  };
+  // If a logo file is selected, read it as a Data URL
+  if (logoFileInput && logoFileInput.files && logoFileInput.files.length > 0) {
+    const file = logoFileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      finalizeAdd(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  } else if (logoInput) {
+    // If the user provided a logo URL manually, use it
+    finalizeAdd(logoInput);
+  } else {
+    // No logo provided; attempt to derive a logo from the channel URL using Clearbit
+    let autoLogo = '';
+    try {
+      const parsed = new URL(url);
+      const host = parsed.hostname;
+      if (host) {
+        autoLogo = `https://logo.clearbit.com/${host}`;
+      }
+    } catch (e) {
+      autoLogo = '';
+    }
+    finalizeAdd(autoLogo);
+  }
+}
+
+// Edit an existing custom channel by index
+function editCustomChannel(index) {
+  const ch = customChannels[index];
+  if (!ch) return;
+  const newName = prompt('Edit channel name:', ch.name);
+  if (newName === null) return; // cancelled
+  const newUrl = prompt('Edit channel URL:', ch.url);
+  if (newUrl === null) return; // cancelled
+  const trimmedName = newName.trim();
+  const trimmedUrl = newUrl.trim();
+  if (!trimmedName || !trimmedUrl) {
+    alert('Name and URL cannot be empty');
+    return;
+  }
+  // Prompt for logo update
+  const newLogoPrompt = prompt('Edit channel logo URL (optional):', ch.logo || '');
+  if (newLogoPrompt === null) return; // cancelled
+  const trimmedLogo = (newLogoPrompt || '').trim();
+  // Update favorites if URL changed
+  if (ch.url !== trimmedUrl) {
+    const favIndex = favorites.indexOf(ch.url);
+    if (favIndex > -1) {
+      favorites[favIndex] = trimmedUrl;
+      localStorage.setItem('favorites', JSON.stringify(favorites));
+    }
+  }
+  // Update channel object with name, url and logo
+  customChannels[index] = { ...ch, name: trimmedName, url: trimmedUrl, logo: trimmedLogo };
+  localStorage.setItem('customChannels', JSON.stringify(customChannels));
+  renderChannels();
+  renderFavorites();
+  setStatus('Channel updated');
+}
+
+// Remove a custom channel by index
+function removeCustomChannel(index) {
+  const ch = customChannels[index];
+  if (!ch) return;
+  // Remove from favorites if exists
+  const favIndex = favorites.indexOf(ch.url);
+  if (favIndex > -1) {
+    favorites.splice(favIndex, 1);
+    localStorage.setItem('favorites', JSON.stringify(favorites));
+  }
+  // Remove the channel
+  customChannels.splice(index, 1);
+  localStorage.setItem('customChannels', JSON.stringify(customChannels));
+  renderChannels();
+  renderFavorites();
+  setStatus('Channel removed');
+}
+
+// Play a media item from library (movie or series)
+function playMediaFromLibrary(type, index) {
+  const item = (type === 'movie') ? movieLibrary[index] : seriesLibrary[index];
+  if (!item) return;
+  playLibrary(item.url, item.name);
+}
+
+// Play a media URL using the video player
+function playLibrary(url, name) {
+  stopPlayback();
+  const video = $("videoPlayer");
+  $("placeholder").style.display = 'none';
+  video.style.display = 'block';
+  // Use Hls.js for .m3u8 streams if supported, otherwise assign the URL directly
+  if (Hls.isSupported() && url.includes('.m3u8')) {
+    currentHls = new Hls();
+    currentHls.loadSource(url);
+    currentHls.attachMedia(video);
+    currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+    });
+  } else {
+    video.src = url;
+    video.play().catch(() => {});
+  }
+  setStatus('Now Playing: ' + name);
+}
+
+// Play a movie loaded from Xtream. The URL is encoded when passed from HTML.
+function playXtreamMovie(encodedUrl, encodedName) {
+  try {
+    const url = decodeURIComponent(encodedUrl);
+    // encodedName may contain encoded HTML characters; decode and unescape
+    const name = decodeURIComponent(encodedName);
+    playLibrary(url, name);
+  } catch (e) {
+    playLibrary(encodedUrl, encodedName);
+  }
+}
+
+// Display an overlay listing all episodes for a series. The user can click
+// on an episode to play it via playLibrary. After a selection, the overlay
+// automatically closes. A close button is also provided.
+function showEpisodeSelector(seriesItem, episodes) {
+  const overlay = $("episodeSelector");
+  overlay.innerHTML = '';
+  // Title
+  const titleEl = document.createElement('h3');
+  titleEl.textContent = `Select Episode for ${seriesItem.name}`;
+  overlay.appendChild(titleEl);
+  // List container
+  const listEl = document.createElement('div');
+  listEl.className = 'episode-list';
+  episodes.forEach(ep => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'episode-item';
+    itemEl.textContent = `S${ep.season}E${ep.episode_num} - ${ep.title}`;
+    itemEl.onclick = () => {
+      overlay.style.display = 'none';
+      const url = `${seriesItem.base}/series/${seriesItem.user}/${seriesItem.pass}/${ep.id}.${ep.container_extension}`;
+      const name = `${seriesItem.name} - S${ep.season}E${ep.episode_num} ${ep.title}`;
+      playLibrary(url, name);
+    };
+    listEl.appendChild(itemEl);
+  });
+  overlay.appendChild(listEl);
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'close-episode-selector';
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = () => {
+    overlay.style.display = 'none';
+  };
+  overlay.appendChild(closeBtn);
+  overlay.style.display = 'block';
+}
+
+// Play a series from Xtream. Presents the user with a prompt to select an episode.
+async function playXtreamSeries(index) {
+  const seriesItem = xtreamSeries[index];
+  if (!seriesItem) return;
+  const { base, user, pass, series_id } = seriesItem;
+  const endpoint = `${base}/player_api.php?username=${user}&password=${pass}&action=get_series_info&series_id=${series_id}`;
+  let info;
+  try {
+    info = await fetchJsonWithProxy(endpoint);
+  } catch (err) {
+    console.error('Failed to fetch series info', err);
+    setStatus('Failed to load series episodes');
+    return;
+  }
+  if (!info || !info.episodes) {
+    setStatus('No episodes found for this series');
+    return;
+  }
+  // Flatten episodes across seasons
+  const episodesArray = [];
+  Object.keys(info.episodes).forEach(seasonNum => {
+    const season = info.episodes[seasonNum];
+    season.forEach(ep => {
+      episodesArray.push({
+        id: ep.id || ep.episode_id || ep.id_episode || '',
+        title: ep.title || ep.name || (`Episode ${ep.episode_num}`),
+        container_extension: (ep.container_extension || ep.ext || 'mp4').replace(/^\./, ''),
+        season: seasonNum,
+        episode_num: ep.episode_num || ep.episodeNumber || ''
+      });
+    });
+  });
+  if (!episodesArray.length) {
+    setStatus('No episodes available');
+    return;
+  }
+  // Show episodes in an overlay for the user to click instead of prompting for a number
+  showEpisodeSelector(seriesItem, episodesArray);
+}
+// Add/Remove favorite
+function toggleFavorite(ch) {
+  const index = favorites.indexOf(ch.url);
+  if(index > -1) {
+    favorites.splice(index, 1);
+  } else {
+    favorites.push(ch.url);
+  }
+  localStorage.setItem('favorites', JSON.stringify(favorites));
+  renderChannels();
+  renderFavorites();
+}
+// Playback helpers
+function stopPlayback() {
+  const video = $("videoPlayer");
+  // Stop any existing HLS streaming
+  if(currentHls) {
+    currentHls.destroy();
+    currentHls = null;
+  }
+  // Pause and reset the video source
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  video.style.display = 'none';
+  // Remove any loaded subtitle track
+  if(subtitleTrack) {
+    video.removeChild(subtitleTrack);
+    subtitleTrack = null;
+  }
+  $("placeholder").style.display = 'flex';
+}
+function playIPTV(url, name = 'IPTV Channel') {
+  stopPlayback();
+  const video = $("videoPlayer");
+  $("placeholder").style.display = 'none';
+  video.style.display = 'block';
+  if(Hls.isSupported() && url.includes('.m3u8')) {
+    currentHls = new Hls();
+    currentHls.loadSource(url);
+    currentHls.attachMedia(video);
+    currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(() => {});
+    });
+  } else {
+    video.src = url;
+    video.play().catch(() => {});
+  }
+  setStatus('Now Playing: ' + name);
+}
+function playMovie() {
+  const fileInput = $("movieFile");
+  const file = fileInput.files[0];
+  if(!file) {
+    alert('Please choose a movie file first');
+    return;
+  }
+  stopPlayback();
+  const video = $("videoPlayer");
+  $("placeholder").style.display = 'none';
+  video.style.display = 'block';
+  // Create an object URL for the selected movie file and assign it to the video element
+  const url = URL.createObjectURL(file);
+  video.src = url;
+  video.play().catch(() => {});
+  setStatus('Now Playing: ' + file.name);
+}
+
+// Load a subtitle file (.vtt or .srt) and attach it to the current video
+function loadSubtitle() {
+  const fileInput = $("subtitleFile");
+  const file = fileInput.files[0];
+  if (!file) {
+    alert('Please select a subtitle file first');
+    return;
+  }
+  const video = $("videoPlayer");
+  // Remove any existing subtitle track
+  if (subtitleTrack) {
+    video.removeChild(subtitleTrack);
+    subtitleTrack = null;
+  }
+  const filename = file.name;
+  const ext = filename.split('.').pop().toLowerCase();
+  // Helper to create and attach a track element, then show it
+  function attachTrack(src, label) {
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.label = label;
+    // Default to Arabic; adjust manually if your subtitles are another language
+    track.srclang = 'ar';
+    track.src = src;
+    track.default = true;
+    video.appendChild(track);
+    subtitleTrack = track;
+    // Set mode to showing so the subtitles appear immediately【945297660766785†L924-L943】
+    track.mode = 'showing';
+    setStatus('Subtitle loaded: ' + label);
+  }
+  // If the file is SRT, convert it to VTT on the client side
+  if (ext === 'srt') {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      // Convert SRT timing format (HH:MM:SS,mmm) to VTT (HH:MM:SS.mmm)
+      const srtText = e.target.result;
+      let vttText = 'WEBVTT\n\n';
+      vttText += srtText
+        .replace(/\r+/g, '')
+        .split('\n')
+        .map((line) => line.replace(/,(?=\d\d\d)/g, '.'))
+        .join('\n');
+      const blob = new Blob([vttText], { type: 'text/vtt' });
+      const url = URL.createObjectURL(blob);
+      attachTrack(url, filename.replace(/\.srt$/i, '.vtt'));
+    };
+    reader.readAsText(file);
+  } else {
+    // For VTT or other supported formats, use the file directly
+    const url = URL.createObjectURL(file);
+    attachTrack(url, filename);
+  }
+}
+// Escape HTML for channel names
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+// Update status box
+function setStatus(text) {
+  $("statusBox").textContent = text;
+}
+// Keyboard shortcut: 'f' for fullscreen on video
+window.addEventListener('keydown', (e) => {
+  if(e.key.toLowerCase() === 'f' && $("videoPlayer").style.display !== 'none') {
+    if($("videoPlayer").requestFullscreen) $("videoPlayer").requestFullscreen();
+  }
+});
+// Initial render
+renderChannels();
+renderFavorites();
+renderMovieLibrary();
+renderSeriesLibrary();
+</script>
+</body>
+</html>
